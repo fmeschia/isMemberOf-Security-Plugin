@@ -1,0 +1,9 @@
+dn: cn=Ismemberof Security Plugin,cn=Plugins,cn=config
+objectClass: top
+objectClass: ds-cfg-plugin
+objectClass: ds-cfg-ismemberof-security-plugin
+cn: Ismemberof Security Plugin
+ds-cfg-enabled: true
+ds-cfg-java-class: org.fmeschia.opendj.IsmemberofSecurityPlugin
+ds-cfg-ismemberof-security-plugin-message: Hello World
+

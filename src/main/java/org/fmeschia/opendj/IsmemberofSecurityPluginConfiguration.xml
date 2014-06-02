@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adm:managed-object name="ismemberof-security-plugin" plural-name="ismemberof-security-plugins"
+  package="org.fmeschia.opendj" extends="plugin"
+  parent-package="org.opends.server.admin.std"
+  xmlns:adm="http://www.opends.org/admin"
+  xmlns:ldap="http://www.opends.org/admin-ldap">
+  <adm:synopsis>An example "Hello World" plugin.</adm:synopsis>
+  <adm:profile name="ldap">
+    <ldap:object-class>
+      <ldap:name>ds-cfg-ismemberof-security-plugin</ldap:name>
+      <ldap:superior>ds-cfg-plugin</ldap:superior>
+    </ldap:object-class>
+  </adm:profile>
+  <adm:property-override name="java-class">
+    <adm:default-behavior>
+      <adm:defined>
+        <adm:value>org.fmeschia.opendj.IsmemberofSecurityPlugin</adm:value>
+      </adm:defined>
+    </adm:default-behavior>
+  </adm:property-override>
+</adm:managed-object>

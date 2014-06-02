@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<adm:package name="org.fmeschia.opendj"
+  xmlns:adm="http://www.opends.org/admin"
+  xmlns:ldap="http://www.opends.org/admin-ldap">
+  <adm:synopsis>Example OpenDJ Hello World plugin.</adm:synopsis>
+</adm:package>

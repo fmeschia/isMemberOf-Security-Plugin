@@ -1,0 +1,557 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <repositories>
+    <repository>
+      <id>forgerock-staging-repository</id>
+      <name>ForgeRock Release Repository</name>
+      <url>http://maven.forgerock.org/repo/releases</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>forgerock-snapshots-repository</id>
+      <name>ForgeRock Snapshot Repository</name>
+      <url>http://maven.forgerock.org/repo/snapshots</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+    </repository>
+  </repositories>
+  <parent>
+    <artifactId>opendj-project</artifactId>
+    <groupId>org.forgerock.opendj</groupId>
+    <version>3.0.0-SNAPSHOT</version>
+  </parent>
+  <groupId>org.fmeschia.opendj</groupId>
+  <artifactId>ismemberof-security-plugin</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+  <dependencies>
+    <dependency>
+      <groupId>org.forgerock.opendj</groupId>
+      <artifactId>opendj-server</artifactId>
+      <version>2.7.0-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+  <properties>
+    <src.dir>src/main/java</src.dir>
+    <xml.dir>src/main/xml</xml.dir>
+  </properties>
+  <build>
+    <plugins>
+
+      <!--
+       ! Directories with generated sources
+       -->
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>1.7</version>
+        <executions>
+          <execution>
+            <id>add-source</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+       ! Message processing.
+       -->
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>1.6</version>
+        <executions>
+          <execution>
+            <id>generate-sources</id>
+            <phase>generate-sources</phase>
+            <configuration>
+              <target>
+
+                <taskdef resource="net/sf/antcontrib/antlib.xml" classpathref="maven.plugin.classpath" />
+
+                <property name="resource.dir" location="${project.basedir}/src/main/java" />
+                <property name="msg.dir" location="${resource.dir}" />
+                <property name="src.gen.dir" location="${project.build.directory}/generated-sources" />
+                <property name="msg.javagen.dir" location="${src.gen.dir}" />
+                <property name="build.dir" location="${project.build.directory}" />
+                <property name="lib.dir" location="${project.basedir}/lib" />
+                <property name="message.dir" location="${build.dir}/message" />
+                <property name="classes.dir" location="${build.dir}/classes" />
+
+
+                <if>
+                  <available file="${msg.dir}" type="dir" property="message.dir.is-present" />
+                  <then>
+                    <!-- list of files properties -->
+                    <path id="messages.properties">
+                      <!-- Note: a package is required and properties file at the root of the
+                       !         message directory will be ignored
+                       ! -->
+                      <fileset dir="${msg.dir}" includes="*/**/*.properties" />
+                    </path>
+                    <property name="msg.dir.list" refid="messages.properties" />
+
+                    <property name="build-tools.jar" refid="maven.plugin.classpath" />
+
+                    <typedef name="genmsg" classname="org.opends.build.tools.GenerateMessageFile" classpathref="maven.plugin.classpath"></typedef>
+
+                    <!-- set property if the list is not empty -->
+                    <if>
+                      <length string="${msg.dir.list}" when="greater" length="0" />
+                      <then>
+                        <!-- Generate the message catalogs for all messages located
+                         !   in the messages directory
+                         ! -->
+                        <mkdir dir="${classes.dir}/messages" />
+                        <for param="file" delimiter="${path.separator}" list="${msg.dir.list}">
+                          <sequential>
+                            <genmsg sourceProps="@{file}" />
+                            <copy file="@{file}" todir="${classes.dir}/messages" />
+                          </sequential>
+                        </for>
+                      </then>
+                      <else>
+                       <echo message="No messages found: ${message.dir} is empty" />
+                      </else>
+                    </if>
+                  </then>
+                  <else>
+                    <echo message="No messages found: ${msg.dir} is missing" />
+                  </else>
+                </if>
+              </target>
+            <!-- end ant -->
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
+
+          <!-- Process the manifest files -->
+
+          <execution>
+            <id>manifest</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>process-sources</phase>
+            <configuration>
+              <target>
+                <property name="build.dir" location="${project.build.directory}" />
+                <property name="classes.dir" location="${build.dir}/classes" />
+                <concat destfile="${classes.dir}/admin/extension.manifest">
+                  <fileset dir="${project.build.directory}/tmp" includes="**/*.manifest" />
+                </concat>
+              </target>
+            </configuration>
+          </execution>
+
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>ant-contrib</groupId>
+            <artifactId>ant-contrib</artifactId>
+            <version>1.0b3</version>
+            <exclusions>
+              <exclusion>
+                <groupId>ant</groupId>
+                <artifactId>ant</artifactId>
+              </exclusion>
+            </exclusions>
+          </dependency>
+          <dependency>
+            <groupId>org.forgerock.opendj</groupId>
+            <artifactId>build-tools</artifactId>
+            <version>2.5.0-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/build-tools.jar</systemPath>
+          </dependency>
+        </dependencies>
+      </plugin>
+
+      <!--
+       ! XSLT Transformations
+       -->
+      
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>xml-maven-plugin</artifactId>
+        <version>1.0</version>
+        <executions>
+	  <execution>
+            <id>generate-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>transform</goal>
+            </goals>
+   	  </execution>
+	  <execution>
+            <id>validate-xml</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>validate</goal>
+            </goals>
+   	  </execution>
+	  </executions>
+        <configuration>
+          <transformationSets>
+
+            <!-- Compile the Directory Server extension configuration meta classes. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/metaMO.xsl</stylesheet>
+              <outputDir>${project.build.directory}/generated-sources</outputDir>
+	      <!-- <addedToClasspath>true</addedToClasspath> -->
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>$1/meta/$2CfgDefn.java</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/Package.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/package-info.xsl</stylesheet>
+              <outputDir>${project.build.directory}/generated-sources</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)\.xml$$"</pattern>
+                  <replacement>$1/meta/package-info.java</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+             <!-- Compile the Directory Server extension configuration client classes. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/clientMO.xsl</stylesheet>
+              <outputDir>${project.build.directory}/generated-sources</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>$1/client/$2CfgClient.java</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/Package.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/package-info.xsl</stylesheet>
+              <outputDir>${project.build.directory}/generated-sources</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)\.xml$$"</pattern>
+                  <replacement>$1/client/package-info.java</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <!-- Compile the Directory Server extension configuration server classes. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/serverMO.xsl</stylesheet>
+              <outputDir>${project.build.directory}/generated-sources</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>$1/server/$2Cfg.java</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/Package.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/package-info.xsl</stylesheet>
+              <outputDir>${project.build.directory}/generated-sources</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)\.xml$$"</pattern>
+                  <replacement>$1/server/package-info.java</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <!-- Compile the Directory Server extension configuration ldap profile property files. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/ldapMOProfile.xsl</stylesheet>
+              <outputDir>${project.build.outputDirectory}/admin/profiles/ldap</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>$1/meta/$2CfgDefn.properties</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <!-- Compile the Directory Server extension configuration cli profile property files. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/cliMOProfile.xsl</stylesheet>
+              <outputDir>${project.build.outputDirectory}/admin/profiles/cli</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>$1/meta/$2CfgDefn.properties</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+            
+            <!-- Compile the Directory Server extension configuration I18N message files. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/messagesMO.xsl</stylesheet>
+              <outputDir>${project.build.outputDirectory}/admin/messages</outputDir>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>$1/meta/$2CfgDefn.properties</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <!-- Compile the Directory Server extension configuration manifest file. -->
+
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/manifestMO.xsl</stylesheet>
+              <outputDir>${project.build.directory}/tmp</outputDir>&gt;
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.FileExtensionMapper">
+                  <targetExtension>.manifest</targetExtension>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+
+            <!-- Compile the Directory Server schema for the plugin -->
+<!-- 
+            <transformationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*Configuration.xml</include>
+              </includes>
+              <excludes>
+                <exclude>org/opends/server/admin/std/*.xml</exclude>
+              </excludes>
+              <stylesheet>${xml.dir}/stylesheets/schema.xsl</stylesheet>
+              <outputDir>${project.build.directory}/schema</outputDir>>
+              <parameters>
+                <parameter>
+                  <name>base-dir</name>
+                  <value>${xml.dir}</value>
+                </parameter>
+              </parameters>
+              <fileMappers>
+                <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.RegExpFileMapper">
+                  <pattern>^(.*)/([^/]+)Configuration\.xml$$</pattern>
+                  <replacement>99-$2.ldif</replacement>
+                </fileMapper>
+              </fileMappers>
+            </transformationSet>
+-->
+          </transformationSets>
+
+          <validationSets>
+            <validationSet>
+              <dir>${src.dir}</dir>
+              <includes>
+                <include>**/*.xml</include>
+              </includes>
+              <excludes>
+                <exclude>catalog.xml</exclude>
+              </excludes>
+            </validationSet>
+          </validationSets>
+          
+          <catalogs>
+              <catalog>${xml.dir}/catalog.xml</catalog>
+          </catalogs>
+          
+        </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>xalan</groupId>
+            <artifactId>xalan</artifactId>
+            <version>2.7.1</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+
+    </plugins>
+    <pluginManagement>
+    	<plugins>
+    		<!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
+    		<plugin>
+    			<groupId>org.eclipse.m2e</groupId>
+    			<artifactId>lifecycle-mapping</artifactId>
+    			<version>1.0.0</version>
+    			<configuration>
+    				<lifecycleMappingMetadata>
+    					<pluginExecutions>
+    						<pluginExecution>
+    							<pluginExecutionFilter>
+    								<groupId>
+    									org.apache.maven.plugins
+    								</groupId>
+    								<artifactId>
+    									maven-antrun-plugin
+    								</artifactId>
+    								<versionRange>[1.6,)</versionRange>
+    								<goals>
+    									<goal>run</goal>
+    								</goals>
+    							</pluginExecutionFilter>
+    							<action>
+    								<execute></execute>
+    							</action>
+    						</pluginExecution>
+    					</pluginExecutions>
+    				</lifecycleMappingMetadata>
+    			</configuration>
+    		</plugin>
+    	</plugins>
+    </pluginManagement>
+  </build>
+</project>

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+  <catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+ 
+    <system systemId="http://www.opends.org/admin"
+            uri="stylesheets/admin.xsd"/>
+ 
+    <system systemId="http://www.opends.org/admin-ldap"
+            uri="stylesheets/admin-ldap.xsd"/>
+ 
+    <system systemId="http://www.opends.org/admin-cli"
+            uri="stylesheets/admin-cli.xsd"/>
+ 
+  </catalog>

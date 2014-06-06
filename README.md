@@ -6,7 +6,7 @@ Problem statement
 -----------------
 The values of the *isMemberOf* virtual attribute are the Distinguished Names of those groups (entries of class *groupofnames* or *groupofuniquenames*) that a person's entry belongs to (i.e. group that have the person's entry DN among the values of their *member*/*uniqueMember* attribute).
 
-As such, the use of the *isMemberOf* attribute is liable for a potential security problem. The directory administrators may decide that it makes sense to restrict the visibility of the members of a group (by setting an ACI on the group's entry), but users may still discover the members of the "restricted" group by searching people using a filter based on the *isMemberOf* attribute. The LDAP standard has no provision to set an ACI for the values of an attributes.
+As such, the use of the *isMemberOf* attribute is liable for a potential security problem. The directory administrators may decide that it makes sense to restrict the visibility of the members of a group (by setting an ACI on the group's entry), but users may still discover the members of the "restricted" group by searching people using a filter based on the *isMemberOf* attribute. The LDAP standard has no provision to set an ACI for the *values* of an attributes.
 
 Solution
 --------

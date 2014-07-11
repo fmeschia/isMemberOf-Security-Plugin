@@ -28,6 +28,7 @@ package org.fmeschia.opendj;
 import static org.fmeschia.opendj.messages.IsmemberofSecurityPluginMessages.ERR_INITIALIZE_PLUGIN;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -51,6 +52,7 @@ import org.opends.server.types.CanceledOperationException;
 import org.opends.server.types.DirectoryException;
 import org.opends.server.types.FilterType;
 import org.opends.server.types.InitializationException;
+import org.opends.server.types.Privilege;
 import org.opends.server.types.RawFilter;
 import org.opends.server.types.ResultCode;
 import org.opends.server.types.SearchResultEntry;
@@ -180,14 +182,36 @@ DirectoryServerPlugin<IsmemberofSecurityPluginCfg> {
 	 * @throws DirectoryException
 	 */
 
-	private List<String> getAuthorizedGroups(AuthenticationInfo authInfo) throws DirectoryException {
-		List<String> out = new ArrayList<String>();
+	private Set<String> getAuthorizedGroups(AuthenticationInfo authInfo) throws DirectoryException {
+		Set<String> out = new HashSet<String>();
 		InternalClientConnection conn = new InternalClientConnection(authInfo);
 		// look from DIT down for groupofnames or groupofuniquenames that have
 		// members visible to the user
 		InternalSearchOperation searchOp = conn.processSearch(
 				"",	SearchScope.WHOLE_SUBTREE, 
 				"(|(&(objectclass=groupofuniquenames)(uniqueMember=*))(&(objectclass=groupofnames)(member=*)))");
+		List<SearchResultEntry> entries = searchOp.getSearchEntries();
+		for (SearchResultEntry entry : entries) {
+			// build a list of stringified DNs
+			out.add(entry.getDN().toString());
+		}
+		return out;
+	}
+	
+	
+	/**
+	 * Returns a list of all the groups in the directory 
+	 * @return the list of groups that the user can fetch members from
+	 * @throws DirectoryException
+	 */
+
+	private Set<String> getAllGroups() throws DirectoryException {
+		Set<String> out = new HashSet<String>();
+		InternalClientConnection conn = InternalClientConnection.getRootConnection();
+		// look from DIT down for groupofnames or groupofuniquenames 
+		InternalSearchOperation searchOp = conn.processSearch(
+				"",	SearchScope.WHOLE_SUBTREE, 
+				"(|(objectclass=groupofuniquenames)(objectclass=groupofnames))");
 		List<SearchResultEntry> entries = searchOp.getSearchEntries();
 		for (SearchResultEntry entry : entries) {
 			// build a list of stringified DNs
@@ -217,50 +241,53 @@ DirectoryServerPlugin<IsmemberofSecurityPluginCfg> {
 	public IntermediateResponse processSearchEntry(
 			SearchEntrySearchOperation searchOperation,
 			SearchResultEntry searchEntry) {
-		// processing takes place only if the isMemberOf attribute is present
-		if (searchEntry.hasAttribute(isMemberOfAttributeType)) {
-			// there should be only one attribute with that name, but anyway...
-			for (Attribute attr : searchEntry.getAttribute(isMemberOfAttributeType)) {
-				List<AttributeValue> toBeRemoved = new ArrayList<AttributeValue>();
-				Iterator<AttributeValue> iter = attr.iterator();
-				// iterate over the attribute values
-				while (iter.hasNext()) {
-					AttributeValue value = iter.next();
-					try {
-						// each value is the DN of a group. If the user is not
-						// authorized to fetch members of that group, the 
-						// value is slated for removal
-						if (!canReadMembers(searchOperation.
-								getClientConnection().
-								getAuthenticationInfo(), value.toString()))
+		// processing takes place only if the client is subject to ACL
+		if (!searchOperation.getClientConnection().hasPrivilege(Privilege.BYPASS_ACL, null)) {
+			// processing takes place only if the isMemberOf attribute is present
+			if (searchEntry.hasAttribute(isMemberOfAttributeType)) {
+				// there should be only one attribute with that name, but anyway...
+				for (Attribute attr : searchEntry.getAttribute(isMemberOfAttributeType)) {
+					List<AttributeValue> toBeRemoved = new ArrayList<AttributeValue>();
+					Iterator<AttributeValue> iter = attr.iterator();
+					// iterate over the attribute values
+					while (iter.hasNext()) {
+						AttributeValue value = iter.next();
+						try {
+							// each value is the DN of a group. If the user is not
+							// authorized to fetch members of that group, the 
+							// value is slated for removal
+							if (!canReadMembers(searchOperation.
+									getClientConnection().
+									getAuthenticationInfo(), value.toString()))
+								toBeRemoved.add(value);
+						} catch (Exception e) {
+							// TODO this needs to be better than just a printStackTrace()
+							e.printStackTrace();
+							// exception is interpreted as inability to fetch
 							toBeRemoved.add(value);
-					} catch (Exception e) {
-						// TODO this needs to be better than just a printStackTrace()
-						e.printStackTrace();
-						// exception is interpreted as inability to fetch
-						toBeRemoved.add(value);
-					}
-				}
-				if (toBeRemoved.size() > 0) {
-					// build a new attribute based on the attribute just processed,
-					// that will contain only those values that need to be removed
-					AttributeBuilder builder = new AttributeBuilder(attr);
-					Iterator<AttributeValue> valueIter = attr.iterator();
-					// iterate over the values of the attribute
-					while (valueIter.hasNext()) {
-						AttributeValue attrVal = valueIter.next();
-						// any value that is not slated for removal will be
-						// deleted from the list of attributes to be removed
-						if (!toBeRemoved.contains(attrVal)) {
-							builder.remove(attrVal);
 						}
 					}
-					Attribute attrToBeRemoved = builder.toAttribute();
-					// this list will contain the values actually removed
-					// it is not used, it's just there for diagnostic purposes
-					List<AttributeValue> removedValues = new ArrayList<AttributeValue>();
-					// remove the undesired values
-					searchEntry.removeAttribute(attrToBeRemoved, removedValues);
+					if (toBeRemoved.size() > 0) {
+						// build a new attribute based on the attribute just processed,
+						// that will contain only those values that need to be removed
+						AttributeBuilder builder = new AttributeBuilder(attr);
+						Iterator<AttributeValue> valueIter = attr.iterator();
+						// iterate over the values of the attribute
+						while (valueIter.hasNext()) {
+							AttributeValue attrVal = valueIter.next();
+							// any value that is not slated for removal will be
+							// deleted from the list of attributes to be removed
+							if (!toBeRemoved.contains(attrVal)) {
+								builder.remove(attrVal);
+							}
+						}
+						Attribute attrToBeRemoved = builder.toAttribute();
+						// this list will contain the values actually removed
+						// it is not used, it's just there for diagnostic purposes
+						List<AttributeValue> removedValues = new ArrayList<AttributeValue>();
+						// remove the undesired values
+						searchEntry.removeAttribute(attrToBeRemoved, removedValues);
+					}
 				}
 			}
 		}
@@ -284,21 +311,24 @@ DirectoryServerPlugin<IsmemberofSecurityPluginCfg> {
 	public PreParse doPreParse(PreParseCompareOperation compareOperation)
 			throws CanceledOperationException {
 		PreParse out = PreParse.continueOperationProcessing(); // default result
-		if (compareOperation.getRawAttributeType().equalsIgnoreCase("isMemberOf")) {
-			// if the comparison involves the isMemberOf attribute, the value
-			// of the assertion is assumed to be a group DN
-			String matchingGroupDnAsString = compareOperation.getAssertionValue().toString();
-			try {
-				// if the user can't fetch the members of the group, stop
-				// with an insufficient access right error
-				if (!canReadMembers(compareOperation.getClientConnection().getAuthenticationInfo(), matchingGroupDnAsString))
+		// processing takes place only if the client is subject to ACL
+		if (!compareOperation.getClientConnection().hasPrivilege(Privilege.BYPASS_ACL, null)) {
+			if (compareOperation.getRawAttributeType().equalsIgnoreCase("isMemberOf")) {
+				// if the comparison involves the isMemberOf attribute, the value
+				// of the assertion is assumed to be a group DN
+				String matchingGroupDnAsString = compareOperation.getAssertionValue().toString();
+				try {
+					// if the user can't fetch the members of the group, stop
+					// with an insufficient access right error
+					if (!canReadMembers(compareOperation.getClientConnection().getAuthenticationInfo(), matchingGroupDnAsString))
+						out = PreParse.stopProcessing(ResultCode.COMPARE_FALSE, Message.EMPTY);
+				} catch (DirectoryException e) {
+					// TODO Need better exception handling
+					e.printStackTrace();
+					// in case of an exception, also stop processing and 
+					// return an insufficient access right error
 					out = PreParse.stopProcessing(ResultCode.COMPARE_FALSE, Message.EMPTY);
-			} catch (DirectoryException e) {
-				// TODO Need better exception handling
-				e.printStackTrace();
-				// in case of an exception, also stop processing and 
-				// return an insufficient access right error
-				out = PreParse.stopProcessing(ResultCode.COMPARE_FALSE, Message.EMPTY);
+				}
 			}
 		}
 		return out;
@@ -326,14 +356,17 @@ DirectoryServerPlugin<IsmemberofSecurityPluginCfg> {
 	public PreParse doPreParse(PreParseSearchOperation searchOperation)
 			throws CanceledOperationException {
 		PreParse out = PreParse.continueOperationProcessing(); // default case
-		// rebuild the filter
-		RawFilter newFilter = rebuildFilter(
-				searchOperation.getRawFilter(),
-				searchOperation.getClientConnection().getAuthenticationInfo());
-		// if the new filter is null, replace it with a logical true value
-		if (newFilter == null) newFilter = RawFilter.createPresenceFilter("objectClass"); 
-		// replace the old filter in the search operation with the rewritten one
-		searchOperation.setRawFilter(newFilter);
+		// processing takes place only if the client is subject to ACL
+		if (!searchOperation.getClientConnection().hasPrivilege(Privilege.BYPASS_ACL, null)) {
+			// rebuild the filter
+			RawFilter newFilter = rebuildFilter(
+					searchOperation.getRawFilter(),
+					searchOperation.getClientConnection().getAuthenticationInfo());
+			// if the new filter is null, replace it with a logical true value
+			if (newFilter == null) newFilter = RawFilter.createPresenceFilter("objectClass"); 
+			// replace the old filter in the search operation with the rewritten one
+			searchOperation.setRawFilter(newFilter);
+		}
 		return out;
 	}
 
@@ -392,21 +425,29 @@ DirectoryServerPlugin<IsmemberofSecurityPluginCfg> {
 					// OR of all the membership in all the "authorized" groups
 					try {
 						// we get a list of the authorized group names
-						List<String> authorizedGroupDns = getAuthorizedGroups(authInfo);
-						// we prepare to build a list of filter components
-						// to build the OR filter
-						ArrayList<RawFilter> filterComponents = new ArrayList<RawFilter>();
-						ByteStringBuilder builder = new ByteStringBuilder();
-						for (String authorizedGroupDn : authorizedGroupDns) {
-							// for each group, we create a (ismemberof=<name>)
-							// filter component
-							builder.clear();
-							builder.append(authorizedGroupDn);
-							filterComponents.add(RawFilter.createEqualityFilter(
-									"isMemberOf", builder.toByteString()));
+						Set<String> authorizedGroupDns = getAuthorizedGroups(authInfo);
+						Set<String> allGroupDns = getAllGroups();
+						if (authorizedGroupDns.equals(allGroupDns)) {
+							// if the user can see all the groups in the directory,
+							// then we leave the presence filter alone, to speed
+							// up things
+							out = filter;
+						} else {
+							// we prepare to build a list of filter components
+							// to build the OR filter
+							ArrayList<RawFilter> filterComponents = new ArrayList<RawFilter>();
+							ByteStringBuilder builder = new ByteStringBuilder();
+							for (String authorizedGroupDn : authorizedGroupDns) {
+								// for each group, we create a (ismemberof=<name>)
+								// filter component
+								builder.clear();
+								builder.append(authorizedGroupDn);
+								filterComponents.add(RawFilter.createEqualityFilter(
+										"isMemberOf", builder.toByteString()));
+							}
+							// and we build an OR filter from the list of component
+							out = RawFilter.createORFilter(filterComponents);
 						}
-						// and we build an OR filter from the list of component
-						out = RawFilter.createORFilter(filterComponents);
 					} catch (DirectoryException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();

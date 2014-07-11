@@ -24,10 +24,12 @@ The plug-in operates in three different ways:
 
     - If a filter element contains an equality match on the *isMemberOf* attribute, the plug-in checks to see whether the user's bind can see the members of the group that corresponds to the value that the attribute is matched against. If the user can't see them, the filter element is replaced by a logical FALSE (visibility metaphor, as above).
 	
-	- If a filter element contains a presence match on the *isMemberOf* attribute, that element is replaced by a series of elements, in OR with one another, each one of them being an equality match against one of the DNs of the group that the user's bind can see the members of (corollary to the visibility metaphor: you can see no values other than the ones you are authorized to see). In this way, a potential information leak is avoided (i.e. without this substitution, users could infer that some person entries must be part of some group that they can't see, even though they couldn't tell what group).
+	- If a filter element contains a presence match on the *isMemberOf* attribute, the plug-in checks whether the user's bind has permission on *all* the groups in the directory tree. If so, that filter element is left alone; otherwise, that element is replaced by a series of elements, in OR with one another, each one of them being an equality match against one of the DNs of the group that the user's bind can see the members of (corollary to the visibility metaphor: you can see no values other than the ones you are authorized to see). In this way, a potential information leak is avoided (i.e. without this substitution, users could infer that some person entries must be part of some group that they can't see, even though they couldn't tell what group).
 	
 	- If a filter element contains any other match on the *isMemberOf* attribute, it will be left alone. OpenDJ will ignore it anyway, because equality and presence are the only matching rules honored by OpenDJ for the isMemberOf attribute.
 	
+The plug-in's operation is bypassed if the user's bind has the *bypass-acl* privilege.
+
 Building the plug-in
 --------------------
 To build the plug-in, you need Apache Maven 3 or later. Simply pull the plug-in sources, and issue the command:

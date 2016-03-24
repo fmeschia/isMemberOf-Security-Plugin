@@ -120,8 +120,8 @@ DirectoryServerPlugin<IsmemberofSecurityPluginCfg> {
 	public void initializePlugin(Set<PluginType> pluginTypes,
 			IsmemberofSecurityPluginCfg configuration)
 					throws ConfigException, InitializationException {
-		// this plug-in may only be used either as a process search result plug-in
-		// or as a pre-parse search plug-in
+		// this plug-in may only be used as a process search result plug-in,
+		// as a pre-parse search plug-in or as a pre-parse compare plug-in
 		for (PluginType t : pluginTypes) {
 			switch (t) {
 			case SEARCH_RESULT_ENTRY:
